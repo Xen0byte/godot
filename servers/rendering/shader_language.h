@@ -447,7 +447,7 @@ public:
 
 		virtual DataType get_datatype() const override { return datatype_cache; }
 		virtual String get_datatype_name() const override { return String(struct_name); }
-		virtual int get_array_size() const override { return array_size; }
+		virtual int get_array_size() const override { return (index_expression || call_expression) ? 0 : array_size; }
 		virtual bool is_indexed() const override { return index_expression != nullptr; }
 
 		ArrayNode() :
@@ -848,6 +848,9 @@ private:
 	Map<StringName, Usage> used_structs;
 	Map<ShaderWarning::Code, Map<StringName, Usage> *> warnings_check_map;
 
+	Map<StringName, Map<StringName, Usage>> used_local_vars;
+	Map<ShaderWarning::Code, Map<StringName, Map<StringName, Usage>> *> warnings_check_map2;
+
 	List<ShaderWarning> warnings;
 
 	bool check_warnings = false;
@@ -917,7 +920,7 @@ private:
 
 	bool _find_identifier(const BlockNode *p_block, bool p_allow_reassign, const FunctionInfo &p_function_info, const StringName &p_identifier, DataType *r_data_type = nullptr, IdentifierType *r_type = nullptr, bool *r_is_const = nullptr, int *r_array_size = nullptr, StringName *r_struct_name = nullptr, ConstantNode::Value *r_constant_value = nullptr);
 #ifdef DEBUG_ENABLED
-	void _parse_used_identifier(const StringName &p_identifier, IdentifierType p_type);
+	void _parse_used_identifier(const StringName &p_identifier, IdentifierType p_type, const StringName &p_function);
 #endif // DEBUG_ENABLED
 	bool _is_operator_assign(Operator p_op) const;
 	bool _validate_assign(Node *p_node, const FunctionInfo &p_function_info, String *r_message = nullptr);

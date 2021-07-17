@@ -631,7 +631,7 @@ ShaderLanguage::Token ShaderLanguage::_get_token() {
 						if (!_is_number(last_char)) {
 							return _make_token(TK_ERROR, "Invalid (integer) numeric constant");
 						}
-						if (!str.is_valid_integer()) {
+						if (!str.is_valid_int()) {
 							return _make_token(TK_ERROR, "Invalid numeric constant");
 						}
 					}
@@ -918,6 +918,7 @@ void ShaderLanguage::clear() {
 	used_uniforms.clear();
 	used_functions.clear();
 	used_structs.clear();
+	used_local_vars.clear();
 	warnings.clear();
 #endif // DEBUG_ENABLED
 
@@ -936,7 +937,7 @@ void ShaderLanguage::clear() {
 }
 
 #ifdef DEBUG_ENABLED
-void ShaderLanguage::_parse_used_identifier(const StringName &p_identifier, IdentifierType p_type) {
+void ShaderLanguage::_parse_used_identifier(const StringName &p_identifier, IdentifierType p_type, const StringName &p_function) {
 	switch (p_type) {
 		case IdentifierType::IDENTIFIER_CONSTANT:
 			if (HAS_WARNING(ShaderWarning::UNUSED_CONSTANT_FLAG) && used_constants.has(p_identifier)) {
@@ -956,6 +957,11 @@ void ShaderLanguage::_parse_used_identifier(const StringName &p_identifier, Iden
 		case IdentifierType::IDENTIFIER_FUNCTION:
 			if (HAS_WARNING(ShaderWarning::UNUSED_FUNCTION_FLAG) && used_functions.has(p_identifier)) {
 				used_functions[p_identifier].used = true;
+			}
+			break;
+		case IdentifierType::IDENTIFIER_LOCAL_VAR:
+			if (HAS_WARNING(ShaderWarning::UNUSED_LOCAL_VARIABLE_FLAG) && used_local_vars.has(p_function) && used_local_vars[p_function].has(p_identifier)) {
+				used_local_vars[p_function][p_identifier].used = true;
 			}
 			break;
 		default:
@@ -2941,7 +2947,7 @@ Variant ShaderLanguage::constant_value_to_variant(const Vector<ShaderLanguage::C
 				p[2][0] = p_value[8].real;
 				p[2][1] = p_value[9].real;
 				p[2][2] = p_value[10].real;
-				Transform t = Transform(p, Vector3(p_value[3].real, p_value[7].real, p_value[11].real));
+				Transform3D t = Transform3D(p, Vector3(p_value[3].real, p_value[7].real, p_value[11].real));
 				value = Variant(t);
 				break;
 			}
@@ -3040,7 +3046,7 @@ PropertyInfo ShaderLanguage::uniform_to_property_info(const ShaderNode::Uniform 
 			pi.type = Variant::BASIS;
 			break;
 		case ShaderLanguage::TYPE_MAT4:
-			pi.type = Variant::TRANSFORM;
+			pi.type = Variant::TRANSFORM3D;
 			break;
 		case ShaderLanguage::TYPE_SAMPLER2D:
 		case ShaderLanguage::TYPE_ISAMPLER2D:
@@ -4171,7 +4177,13 @@ ShaderLanguage::Node *ShaderLanguage::_parse_expression(BlockNode *p_block, cons
 					expr = func;
 #ifdef DEBUG_ENABLED
 					if (check_warnings) {
-						_parse_used_identifier(name, IdentifierType::IDENTIFIER_FUNCTION);
+						StringName func_name;
+
+						if (p_block && p_block->parent_function) {
+							func_name = p_block->parent_function->name;
+						}
+
+						_parse_used_identifier(name, IdentifierType::IDENTIFIER_FUNCTION, func_name);
 					}
 #endif // DEBUG_ENABLED
 				}
@@ -4319,7 +4331,13 @@ ShaderLanguage::Node *ShaderLanguage::_parse_expression(BlockNode *p_block, cons
 				}
 #ifdef DEBUG_ENABLED
 				if (check_warnings) {
-					_parse_used_identifier(identifier, ident_type);
+					StringName func_name;
+
+					if (p_block && p_block->parent_function) {
+						func_name = p_block->parent_function->name;
+					}
+
+					_parse_used_identifier(identifier, ident_type, func_name);
 				}
 #endif // DEBUG_ENABLED
 			}
@@ -5537,6 +5555,20 @@ Error ShaderLanguage::_parse_block(BlockNode *p_block, const FunctionInfo &p_fun
 					}
 				}
 
+#ifdef DEBUG_ENABLED
+				if (check_warnings && HAS_WARNING(ShaderWarning::UNUSED_LOCAL_VARIABLE_FLAG)) {
+					if (p_block && p_block->parent_function) {
+						StringName func_name = p_block->parent_function->name;
+
+						if (!used_local_vars.has(func_name)) {
+							used_local_vars.insert(func_name, Map<StringName, Usage>());
+						}
+
+						used_local_vars[func_name].insert(name, Usage(tk_line));
+					}
+				}
+#endif // DEBUG_ENABLED
+
 				BlockNode::Variable var;
 				var.type = type;
 				var.precision = precision;
@@ -6375,13 +6407,7 @@ Error ShaderLanguage::_parse_block(BlockNode *p_block, const FunctionInfo &p_fun
 				}
 				pass_array = false;
 
-				bool array_size_incorrect = false;
-
-				if (b->parent_function->return_array_size > 0 && b->parent_function->return_array_size != expr->get_array_size()) {
-					array_size_incorrect = true;
-				}
-
-				if (b->parent_function->return_type != expr->get_datatype() || array_size_incorrect || return_struct_name != expr->get_datatype_name()) {
+				if (b->parent_function->return_type != expr->get_datatype() || b->parent_function->return_array_size != expr->get_array_size() || return_struct_name != expr->get_datatype_name()) {
 					_set_error("Expected return with an expression of type '" + (return_struct_name != "" ? return_struct_name : get_datatype_name(b->parent_function->return_type)) + array_size_string + "'");
 					return ERR_PARSE_ERROR;
 				}
@@ -7990,6 +8016,15 @@ String ShaderLanguage::get_shader_type(const String &p_code) {
 
 #ifdef DEBUG_ENABLED
 void ShaderLanguage::_check_warning_accums() {
+	for (Map<ShaderWarning::Code, Map<StringName, Map<StringName, Usage>> *>::Element *E = warnings_check_map2.front(); E; E = E->next()) {
+		for (Map<StringName, Map<StringName, Usage>>::Element *T = (*E->get()).front(); T; T = T->next()) {
+			for (const Map<StringName, Usage>::Element *U = T->get().front(); U; U = U->next()) {
+				if (!U->get().used) {
+					_add_warning(E->key(), U->get().decl_line, U->key());
+				}
+			}
+		}
+	}
 	for (Map<ShaderWarning::Code, Map<StringName, Usage> *>::Element *E = warnings_check_map.front(); E; E = E->next()) {
 		for (const Map<StringName, Usage>::Element *U = (*E->get()).front(); U; U = U->next()) {
 			if (!U->get().used) {
@@ -8462,6 +8497,8 @@ ShaderLanguage::ShaderLanguage() {
 	warnings_check_map.insert(ShaderWarning::UNUSED_STRUCT, &used_structs);
 	warnings_check_map.insert(ShaderWarning::UNUSED_UNIFORM, &used_uniforms);
 	warnings_check_map.insert(ShaderWarning::UNUSED_VARYING, &used_varyings);
+
+	warnings_check_map2.insert(ShaderWarning::UNUSED_LOCAL_VARIABLE, &used_local_vars);
 #endif // DEBUG_ENABLED
 }
 

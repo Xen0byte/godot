@@ -86,7 +86,7 @@ void EditorAssetLibraryItem::_bind_methods() {
 
 EditorAssetLibraryItem::EditorAssetLibraryItem() {
 	Ref<StyleBoxEmpty> border;
-	border.instance();
+	border.instantiate();
 	border->set_default_margin(SIDE_LEFT, 5 * EDSCALE);
 	border->set_default_margin(SIDE_RIGHT, 5 * EDSCALE);
 	border->set_default_margin(SIDE_BOTTOM, 5 * EDSCALE);
@@ -155,7 +155,7 @@ void EditorAssetLibraryItemDescription::set_image(int p_type, int p_index, const
 						thumbnail->blend_rect(overlay, overlay->get_used_rect(), overlay_pos);
 
 						Ref<ImageTexture> tex;
-						tex.instance();
+						tex.instantiate();
 						tex->create_from_image(thumbnail);
 
 						preview_images[i].button->set_icon(tex);
@@ -369,6 +369,9 @@ void EditorAssetLibraryItemDownload::_http_download_completed(int p_status, int 
 	progress->set_modulate(Color(0, 0, 0, 0));
 
 	set_process(false);
+
+	// Automatically prompt for installation once the download is completed.
+	_install();
 }
 
 void EditorAssetLibraryItemDownload::configure(const String &p_title, int p_asset_id, const Ref<Texture2D> &p_preview, const String &p_download_url, const String &p_sha256_hash) {
@@ -456,6 +459,7 @@ void EditorAssetLibraryItemDownload::_install() {
 		return;
 	}
 
+	asset_installer->set_asset_name(title->get_text());
 	asset_installer->open(file, 1);
 }
 
@@ -761,7 +765,7 @@ void EditorAssetLibrary::_image_update(bool use_cache, bool final, const PackedB
 			}
 
 			Ref<ImageTexture> tex;
-			tex.instance();
+			tex.instantiate();
 			tex->create_from_image(image);
 
 			obj->call("set_image", image_queue[p_queue_id].image_type, image_queue[p_queue_id].image_index, tex);
@@ -1098,11 +1102,9 @@ void EditorAssetLibrary::_http_request_completed(int p_status, int p_code, const
 
 	Dictionary d;
 	{
-		Variant js;
-		String errs;
-		int errl;
-		JSON::parse(str, js, errs, errl);
-		d = js;
+		JSON json;
+		json.parse(str);
+		d = json.get_data();
 	}
 
 	RequestType requested = requesting;
@@ -1298,6 +1300,7 @@ void EditorAssetLibrary::_asset_file_selected(const String &p_file) {
 	}
 
 	asset_installer = memnew(EditorAssetInstaller);
+	asset_installer->set_asset_name(p_file.get_basename());
 	add_child(asset_installer);
 	asset_installer->open(p_file);
 }
@@ -1437,7 +1440,7 @@ EditorAssetLibrary::EditorAssetLibrary(bool p_templates_only) {
 	library_scroll_bg->add_child(library_scroll);
 
 	Ref<StyleBoxEmpty> border2;
-	border2.instance();
+	border2.instantiate();
 	border2->set_default_margin(SIDE_LEFT, 15 * EDSCALE);
 	border2->set_default_margin(SIDE_RIGHT, 35 * EDSCALE);
 	border2->set_default_margin(SIDE_BOTTOM, 15 * EDSCALE);

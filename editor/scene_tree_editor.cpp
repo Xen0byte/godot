@@ -526,6 +526,10 @@ void SceneTreeEditor::_node_removed(Node *p_node) {
 }
 
 void SceneTreeEditor::_node_renamed(Node *p_node) {
+	if (!get_scene_node()->is_ancestor_of(p_node)) {
+		return;
+	}
+
 	emit_signal("node_renamed");
 
 	if (!tree_dirty) {
@@ -659,7 +663,14 @@ void SceneTreeEditor::_cell_multi_selected(Object *p_object, int p_cell, bool p_
 	} else {
 		editor_selection->remove_node(n);
 	}
-	emit_signal("node_changed");
+
+	// Selection changed to be single node, so emit "selected" (for single node) rather than "changed" (for multiple nodes)
+	if (editor_selection->get_selected_nodes().size() == 1) {
+		selected = editor_selection->get_selected_node_list()[0];
+		emit_signal("node_selected");
+	} else {
+		emit_signal("node_changed");
+	}
 }
 
 void SceneTreeEditor::_notification(int p_what) {
@@ -944,7 +955,7 @@ Variant SceneTreeEditor::get_drag_data_fw(const Point2 &p_point, Control *p_from
 
 		Node *n = get_node(np);
 		if (n) {
-			// Only allow selection if not part of an instanced scene.
+			// Only allow selection if not part of an instantiated scene.
 			if (!n->get_owner() || n->get_owner() == get_scene_node() || n->get_owner()->get_filename() == String()) {
 				selected.push_back(n);
 				icons.push_back(next->get_icon(0));
@@ -1129,9 +1140,9 @@ void SceneTreeEditor::_bind_methods() {
 	ClassDB::bind_method("_rename_node", &SceneTreeEditor::_rename_node);
 	ClassDB::bind_method("_test_update_tree", &SceneTreeEditor::_test_update_tree);
 
-	ClassDB::bind_method(D_METHOD("get_drag_data_fw"), &SceneTreeEditor::get_drag_data_fw);
-	ClassDB::bind_method(D_METHOD("can_drop_data_fw"), &SceneTreeEditor::can_drop_data_fw);
-	ClassDB::bind_method(D_METHOD("drop_data_fw"), &SceneTreeEditor::drop_data_fw);
+	ClassDB::bind_method(D_METHOD("_get_drag_data_fw"), &SceneTreeEditor::get_drag_data_fw);
+	ClassDB::bind_method(D_METHOD("_can_drop_data_fw"), &SceneTreeEditor::can_drop_data_fw);
+	ClassDB::bind_method(D_METHOD("_drop_data_fw"), &SceneTreeEditor::drop_data_fw);
 
 	ClassDB::bind_method(D_METHOD("update_tree"), &SceneTreeEditor::update_tree);
 
@@ -1165,6 +1176,7 @@ SceneTreeEditor::SceneTreeEditor(bool p_label, bool p_can_rename, bool p_can_ope
 
 	if (p_label) {
 		Label *label = memnew(Label);
+		label->set_theme_type_variation("HeaderSmall");
 		label->set_position(Point2(10, 0));
 		label->set_text(TTR("Scene Tree (Nodes):"));
 

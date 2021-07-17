@@ -217,6 +217,7 @@ void editor_register_and_generate_icons(Ref<Theme> p_theme, bool p_dark_theme = 
 		exceptions.insert("EditorControlAnchor");
 		exceptions.insert("DefaultProjectIcon");
 		exceptions.insert("GuiChecked");
+		exceptions.insert("GuiRadioChecked");
 		exceptions.insert("GuiCloseCustomizable");
 		exceptions.insert("GuiGraphNodePort");
 		exceptions.insert("GuiResizer");
@@ -464,7 +465,7 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 
 	// Ensure borders are visible when using an editor scale below 100%.
 	const int border_width = CLAMP(border_size, 0, 2) * MAX(1, EDSCALE);
-	const int corner_width = CLAMP(corner_radius, 0, 6) * EDSCALE;
+	const int corner_width = CLAMP(corner_radius, 0, 6);
 	const int default_margin_size = 4;
 	const int margin_size_extra = default_margin_size + CLAMP(border_size, 0, 2);
 
@@ -765,12 +766,12 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 		theme->set_stylebox("sub_inspector_bg" + itos(i), "Editor", sub_inspector_bg);
 
 		Ref<StyleBoxFlat> bg_color;
-		bg_color.instance();
+		bg_color.instantiate();
 		bg_color->set_bg_color(si_base_color * Color(0.7, 0.7, 0.7, 0.8));
 		bg_color->set_border_width_all(0);
 
 		Ref<StyleBoxFlat> bg_color_selected;
-		bg_color_selected.instance();
+		bg_color_selected.instantiate();
 		bg_color_selected->set_border_width_all(0);
 		bg_color_selected->set_bg_color(si_base_color * Color(0.8, 0.8, 0.8, 0.8));
 
@@ -785,14 +786,17 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	style_property_bg->set_bg_color(highlight_color);
 	style_property_bg->set_border_width_all(0);
 
-	theme->set_constant("font_offset", "EditorProperty", 1 * EDSCALE);
+	theme->set_constant("font_offset", "EditorProperty", 8 * EDSCALE);
 	theme->set_stylebox("bg_selected", "EditorProperty", style_property_bg);
 	theme->set_stylebox("bg", "EditorProperty", Ref<StyleBoxEmpty>(memnew(StyleBoxEmpty)));
 	theme->set_constant("vseparation", "EditorProperty", (extra_spacing + default_margin_size) * EDSCALE);
 	theme->set_color("error_color", "EditorProperty", error_color);
 	theme->set_color("property_color", "EditorProperty", property_color);
 
-	theme->set_constant("inspector_margin", "Editor", 8 * EDSCALE);
+	Color inspector_section_color = font_color.lerp(Color(0.5, 0.5, 0.5), 0.35);
+	theme->set_color("font_color", "EditorInspectorSection", inspector_section_color);
+
+	theme->set_constant("inspector_margin", "Editor", 12 * EDSCALE);
 
 	// Tree & ItemList background
 	Ref<StyleBoxFlat> style_tree_bg = style_default->duplicate();
@@ -884,6 +888,12 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	theme->set_color("prop_subsection", "Editor", prop_subsection_color);
 	theme->set_color("drop_position_color", "Tree", accent_color);
 
+	Ref<StyleBoxFlat> category_bg = style_default->duplicate();
+	// Make Trees easier to distinguish from other controls by using a darker background color.
+	category_bg->set_bg_color(prop_category_color);
+	category_bg->set_border_color(prop_category_color);
+	theme->set_stylebox("prop_category_style", "Editor", category_bg);
+
 	// ItemList
 	Ref<StyleBoxFlat> style_itemlist_bg = style_default->duplicate();
 	style_itemlist_bg->set_bg_color(dark_color_1);
@@ -941,7 +951,7 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	style_content_panel->set_border_color(dark_color_3);
 	style_content_panel->set_border_width_all(border_width);
 	// compensate the border
-	style_content_panel->set_default_margin(SIDE_TOP, margin_size_extra * EDSCALE);
+	style_content_panel->set_default_margin(SIDE_TOP, (2 + margin_size_extra) * EDSCALE);
 	style_content_panel->set_default_margin(SIDE_RIGHT, margin_size_extra * EDSCALE);
 	style_content_panel->set_default_margin(SIDE_BOTTOM, margin_size_extra * EDSCALE);
 	style_content_panel->set_default_margin(SIDE_LEFT, margin_size_extra * EDSCALE);
@@ -949,14 +959,6 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	style_content_panel->set_border_width(Side::SIDE_TOP, Math::round(2 * EDSCALE));
 	style_content_panel->set_border_color(dark_color_2);
 	theme->set_stylebox("panel", "TabContainer", style_content_panel);
-
-	// this is the stylebox used in 3d and 2d viewports (no borders)
-	Ref<StyleBoxFlat> style_content_panel_vp = style_content_panel->duplicate();
-	style_content_panel_vp->set_default_margin(SIDE_LEFT, border_width * 2);
-	style_content_panel_vp->set_default_margin(SIDE_TOP, default_margin_size * EDSCALE);
-	style_content_panel_vp->set_default_margin(SIDE_RIGHT, border_width * 2);
-	style_content_panel_vp->set_default_margin(SIDE_BOTTOM, border_width * 2);
-	theme->set_stylebox("Content", "EditorStyles", style_content_panel_vp);
 
 	// These styleboxes can be used on tabs against the base color background (e.g. nested tabs).
 	Ref<StyleBoxFlat> style_tab_selected_odd = style_tab_selected->duplicate();
@@ -966,6 +968,22 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	Ref<StyleBoxFlat> style_content_panel_odd = style_content_panel->duplicate();
 	style_content_panel_odd->set_bg_color(disabled_bg_color);
 	theme->set_stylebox("panel_odd", "TabContainer", style_content_panel_odd);
+
+	// This stylebox is used in 3d and 2d viewports (no borders).
+	Ref<StyleBoxFlat> style_content_panel_vp = style_content_panel->duplicate();
+	style_content_panel_vp->set_default_margin(SIDE_LEFT, border_width * 2);
+	style_content_panel_vp->set_default_margin(SIDE_TOP, default_margin_size * EDSCALE);
+	style_content_panel_vp->set_default_margin(SIDE_RIGHT, border_width * 2);
+	style_content_panel_vp->set_default_margin(SIDE_BOTTOM, border_width * 2);
+	theme->set_stylebox("Content", "EditorStyles", style_content_panel_vp);
+
+	// This stylebox is used by preview tabs in the Theme Editor.
+	Ref<StyleBoxFlat> style_theme_preview_tab = style_tab_selected_odd->duplicate();
+	style_theme_preview_tab->set_expand_margin_size(SIDE_BOTTOM, 5 * EDSCALE);
+	theme->set_stylebox("ThemeEditorPreviewFG", "EditorStyles", style_theme_preview_tab);
+	Ref<StyleBoxFlat> style_theme_preview_bg_tab = style_tab_unselected->duplicate();
+	style_theme_preview_bg_tab->set_expand_margin_size(SIDE_BOTTOM, 2 * EDSCALE);
+	theme->set_stylebox("ThemeEditorPreviewBG", "EditorStyles", style_theme_preview_bg_tab);
 
 	// Separators
 	theme->set_stylebox("separator", "HSeparator", make_line_stylebox(separator_color, MAX(Math::round(EDSCALE), border_width)));
@@ -986,6 +1004,9 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	// LineEdit
 
 	Ref<StyleBoxFlat> style_line_edit = style_widget->duplicate();
+	// The original style_widget style has an extra 1 pixel offset that makes LineEdits not align with Buttons,
+	// so this compensates for that.
+	style_line_edit->set_default_margin(SIDE_TOP, style_line_edit->get_default_margin(SIDE_TOP) - 1 * EDSCALE);
 	// Add a bottom line to make LineEdits more visible, especially in sectioned inspectors
 	// such as the Project Settings.
 	style_line_edit->set_border_width(SIDE_BOTTOM, Math::round(2 * EDSCALE));
@@ -1335,6 +1356,19 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	style_info_3d_viewport->set_bg_color(style_info_3d_viewport->get_bg_color() * Color(1, 1, 1, 0.5));
 	style_info_3d_viewport->set_border_width_all(0);
 	theme->set_stylebox("Information3dViewport", "EditorStyles", style_info_3d_viewport);
+
+	// Theme editor.
+	theme->set_color("preview_picker_overlay_color", "ThemeEditor", Color(0.1, 0.1, 0.1, 0.25));
+	Color theme_preview_picker_bg_color = accent_color;
+	theme_preview_picker_bg_color.a = 0.2;
+	Ref<StyleBoxFlat> theme_preview_picker_sb = make_flat_stylebox(theme_preview_picker_bg_color, 0, 0, 0, 0);
+	theme_preview_picker_sb->set_border_color(accent_color);
+	theme_preview_picker_sb->set_border_width_all(1.0 * EDSCALE);
+	theme->set_stylebox("preview_picker_overlay", "ThemeEditor", theme_preview_picker_sb);
+	Color theme_preview_picker_label_bg_color = accent_color;
+	theme_preview_picker_label_bg_color.set_v(0.5);
+	Ref<StyleBoxFlat> theme_preview_picker_label_sb = make_flat_stylebox(theme_preview_picker_label_bg_color, 4.0, 1.0, 4.0, 3.0);
+	theme->set_stylebox("preview_picker_label", "ThemeEditor", theme_preview_picker_label_sb);
 
 	// adaptive script theme constants
 	// for comments and elements with lower relevance

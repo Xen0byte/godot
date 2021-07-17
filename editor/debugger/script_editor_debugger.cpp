@@ -1535,7 +1535,7 @@ ScriptEditorDebugger::ScriptEditorDebugger(EditorNode *p_editor) {
 		reason->set_text("");
 		hbc->add_child(reason);
 		reason->set_h_size_flags(SIZE_EXPAND_FILL);
-		reason->set_autowrap(true);
+		reason->set_autowrap_mode(Label::AUTOWRAP_WORD_SMART);
 		reason->set_max_lines_visible(3);
 		reason->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 
@@ -1643,9 +1643,11 @@ ScriptEditorDebugger::ScriptEditorDebugger(EditorNode *p_editor) {
 		error_tree->set_columns(2);
 
 		error_tree->set_column_expand(0, false);
-		error_tree->set_column_min_width(0, 140);
+		error_tree->set_column_custom_minimum_width(0, 140);
+		error_tree->set_column_clip_content(0, true);
 
 		error_tree->set_column_expand(1, true);
+		error_tree->set_column_clip_content(1, true);
 
 		error_tree->set_select_mode(Tree::SELECT_ROW);
 		error_tree->set_hide_root(true);
@@ -1698,6 +1700,8 @@ ScriptEditorDebugger::ScriptEditorDebugger(EditorNode *p_editor) {
 		VBoxContainer *vmem_vb = memnew(VBoxContainer);
 		HBoxContainer *vmem_hb = memnew(HBoxContainer);
 		Label *vmlb = memnew(Label(TTR("List of Video Memory Usage by Resource:") + " "));
+		vmlb->set_theme_type_variation("HeaderSmall");
+
 		vmlb->set_h_size_flags(SIZE_EXPAND_FILL);
 		vmem_hb->add_child(vmlb);
 		vmem_hb->add_child(memnew(Label(TTR("Total:") + " ")));
@@ -1731,13 +1735,13 @@ ScriptEditorDebugger::ScriptEditorDebugger(EditorNode *p_editor) {
 		vmem_tree->set_column_expand(0, true);
 		vmem_tree->set_column_expand(1, false);
 		vmem_tree->set_column_title(1, TTR("Type"));
-		vmem_tree->set_column_min_width(1, 100 * EDSCALE);
+		vmem_tree->set_column_custom_minimum_width(1, 100 * EDSCALE);
 		vmem_tree->set_column_expand(2, false);
 		vmem_tree->set_column_title(2, TTR("Format"));
-		vmem_tree->set_column_min_width(2, 150 * EDSCALE);
+		vmem_tree->set_column_custom_minimum_width(2, 150 * EDSCALE);
 		vmem_tree->set_column_expand(3, false);
 		vmem_tree->set_column_title(3, TTR("Usage"));
-		vmem_tree->set_column_min_width(3, 80 * EDSCALE);
+		vmem_tree->set_column_custom_minimum_width(3, 80 * EDSCALE);
 		vmem_tree->set_hide_root(true);
 
 		tabs->add_child(vmem_vb);

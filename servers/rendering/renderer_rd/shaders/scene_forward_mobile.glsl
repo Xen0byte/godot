@@ -96,6 +96,18 @@ layout(location = 8) out float dp_clip;
 
 #endif
 
+#ifdef USE_MULTIVIEW
+#ifdef has_VK_KHR_multiview
+#define ViewIndex gl_ViewIndex
+#else
+// !BAS! This needs to become an input once we implement our fallback!
+#define ViewIndex 0
+#endif
+#else
+// Set to zero, not supported in non stereo
+#define ViewIndex 0
+#endif //USE_MULTIVIEW
+
 invariant gl_Position;
 
 #GLOBALS
@@ -234,7 +246,13 @@ void main() {
 	vec4 position;
 #endif
 
+#ifdef USE_MULTIVIEW
+	mat4 projection_matrix = scene_data.projection_matrix_view[ViewIndex];
+	mat4 inv_projection_matrix = scene_data.inv_projection_matrix_view[ViewIndex];
+#else
 	mat4 projection_matrix = scene_data.projection_matrix;
+	mat4 inv_projection_matrix = scene_data.inv_projection_matrix;
+#endif //USE_MULTIVIEW
 
 //using world coordinates
 #if !defined(SKIP_TRANSFORM_USED) && defined(VERTEX_WORLD_COORDS_USED)
@@ -352,6 +370,13 @@ void main() {
 
 #VERSION_DEFINES
 
+/* Specialization Constants */
+
+//unused but there for compatibility
+layout(constant_id = 0) const bool sc_use_forward_gi = false;
+layout(constant_id = 1) const bool sc_use_light_projector = false;
+layout(constant_id = 2) const bool sc_use_light_soft_shadows = false;
+
 /* Include our forward mobile UBOs definitions etc. */
 #include "scene_forward_mobile_inc.glsl"
 
@@ -386,10 +411,26 @@ layout(location = 8) in float dp_clip;
 
 #endif
 
+#ifdef USE_MULTIVIEW
+#ifdef has_VK_KHR_multiview
+#define ViewIndex gl_ViewIndex
+#else
+// !BAS! This needs to become an input once we implement our fallback!
+#define ViewIndex 0
+#endif
+#else
+// Set to zero, not supported in non stereo
+#define ViewIndex 0
+#endif //USE_MULTIVIEW
+
 //defines to keep compatibility with vertex
 
 #define world_matrix draw_call.transform
+#ifdef USE_MULTIVIEW
+#define projection_matrix scene_data.projection_matrix_view[ViewIndex]
+#else
 #define projection_matrix scene_data.projection_matrix
+#endif
 
 #if defined(ENABLE_SSS) && defined(ENABLE_TRANSMITTANCE)
 //both required for transmittance to be enabled
@@ -509,7 +550,6 @@ void main() {
 	vec3 backlight = vec3(0.0);
 	vec4 transmittance_color = vec4(0.0);
 	float transmittance_depth = 0.0;
-	float transmittance_curve = 1.0;
 	float transmittance_boost = 0.0;
 	float metallic = 0.0;
 	float specular = 0.5;
@@ -761,7 +801,7 @@ void main() {
 	if (scene_data.roughness_limiter_enabled) {
 		//http://www.jp.square-enix.com/tech/library/pdf/ImprovedGeometricSpecularAA.pdf
 		float roughness2 = roughness * roughness;
-		vec3 dndu = dFdx(normal), dndv = dFdx(normal);
+		vec3 dndu = dFdx(normal), dndv = dFdy(normal);
 		float variance = scene_data.roughness_limiter_amount * (dot(dndu, dndu) + dot(dndv, dndv));
 		float kernelRoughness2 = min(2.0 * variance, scene_data.roughness_limiter_limit); //limit effect
 		float filteredRoughness2 = min(1.0, roughness2 + kernelRoughness2);
@@ -1259,7 +1299,6 @@ void main() {
 #ifdef LIGHT_TRANSMITTANCE_USED
 					transmittance_color,
 					transmittance_depth,
-					transmittance_curve,
 					transmittance_boost,
 					transmittance_z,
 #endif
@@ -1310,7 +1349,6 @@ void main() {
 #ifdef LIGHT_TRANSMITTANCE_USED
 					transmittance_color,
 					transmittance_depth,
-					transmittance_curve,
 					transmittance_boost,
 #endif
 */
@@ -1359,7 +1397,6 @@ void main() {
 #ifdef LIGHT_TRANSMITTANCE_USED
 					transmittance_color,
 					transmittance_depth,
-					transmittance_curve,
 					transmittance_boost,
 #endif
 */

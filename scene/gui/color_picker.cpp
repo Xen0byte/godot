@@ -40,6 +40,8 @@
 #endif
 #include "scene/main/window.h"
 
+List<Color> ColorPicker::preset_cache;
+
 void ColorPicker::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_THEME_CHANGED: {
@@ -57,11 +59,17 @@ void ColorPicker::_notification(int p_what) {
 
 #ifdef TOOLS_ENABLED
 			if (Engine::get_singleton()->is_editor_hint()) {
-				PackedColorArray saved_presets = EditorSettings::get_singleton()->get_project_metadata("color_picker", "presets", PackedColorArray());
-
-				for (int i = 0; i < saved_presets.size(); i++) {
-					add_preset(saved_presets[i]);
+				if (preset_cache.is_empty()) {
+					PackedColorArray saved_presets = EditorSettings::get_singleton()->get_project_metadata("color_picker", "presets", PackedColorArray());
+					for (int i = 0; i < saved_presets.size(); i++) {
+						preset_cache.push_back(saved_presets[i]);
+					}
 				}
+
+				for (int i = 0; i < preset_cache.size(); i++) {
+					presets.push_back(preset_cache[i]);
+				}
+				preset->update();
 			}
 #endif
 		} break;
@@ -88,7 +96,7 @@ Ref<Shader> ColorPicker::wheel_shader;
 Ref<Shader> ColorPicker::circle_shader;
 
 void ColorPicker::init_shaders() {
-	wheel_shader.instance();
+	wheel_shader.instantiate();
 	wheel_shader->set_code(
 			"shader_type canvas_item;"
 			"void fragment() {"
@@ -107,7 +115,7 @@ void ColorPicker::init_shaders() {
 			"	COLOR = vec4(clamp((abs(fract(((a - TAU) / TAU) + vec3(3.0, 2.0, 1.0) / 3.0) * 6.0 - 3.0) - 1.0), 0.0, 1.0), (b + b2 + b3 + b4) / 4.00);"
 			"}");
 
-	circle_shader.instance();
+	circle_shader.instantiate();
 	circle_shader->set_code(
 			"shader_type canvas_item;"
 			"uniform float v = 1.0;"
@@ -289,7 +297,7 @@ void ColorPicker::_value_changed(double) {
 	emit_signal("color_changed", color);
 }
 
-void ColorPicker::_html_entered(const String &p_html) {
+void ColorPicker::_html_submitted(const String &p_html) {
 	if (updating || text_is_constructor || !c_text->is_visible()) {
 		return;
 	}
@@ -413,6 +421,7 @@ void ColorPicker::add_preset(const Color &p_color) {
 		presets.move_to_back(presets.find(p_color));
 	} else {
 		presets.push_back(p_color);
+		preset_cache.push_back(p_color);
 	}
 	preset->update();
 
@@ -427,6 +436,7 @@ void ColorPicker::add_preset(const Color &p_color) {
 void ColorPicker::erase_preset(const Color &p_color) {
 	if (presets.find(p_color)) {
 		presets.erase(presets.find(p_color));
+		preset_cache.erase(preset_cache.find(p_color));
 		preset->update();
 
 #ifdef TOOLS_ENABLED
@@ -1041,7 +1051,7 @@ void ColorPicker::_html_focus_exit() {
 	if (c_text->get_menu()->is_visible()) {
 		return;
 	}
-	_html_entered(c_text->get_text());
+	_html_submitted(c_text->get_text());
 	_focus_exit();
 }
 
@@ -1204,7 +1214,7 @@ ColorPicker::ColorPicker() :
 
 	hhb->add_child(c_text);
 	c_text->set_h_size_flags(SIZE_EXPAND_FILL);
-	c_text->connect("text_entered", callable_mp(this, &ColorPicker::_html_entered));
+	c_text->connect("text_submitted", callable_mp(this, &ColorPicker::_html_submitted));
 	c_text->connect("focus_entered", callable_mp(this, &ColorPicker::_focus_enter));
 	c_text->connect("focus_exited", callable_mp(this, &ColorPicker::_html_focus_exit));
 
@@ -1213,9 +1223,9 @@ ColorPicker::ColorPicker() :
 	wheel_edit->set_custom_minimum_size(Size2(get_theme_constant("sv_width"), get_theme_constant("sv_height")));
 	hb_edit->add_child(wheel_edit);
 
-	wheel_mat.instance();
+	wheel_mat.instantiate();
 	wheel_mat->set_shader(wheel_shader);
-	circle_mat.instance();
+	circle_mat.instantiate();
 	circle_mat->set_shader(circle_shader);
 
 	MarginContainer *wheel_margin(memnew(MarginContainer));
